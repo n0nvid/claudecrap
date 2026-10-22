@@ -51,7 +51,9 @@ case $mode in
     ;;
   restore)
     [ -d $REPO/$IMG ] || fail "No saved image - run SaveBaseline first"
-    sudo ocs-sr -b -cs -p true restoreparts $IMG ${win#/dev/} || fail "restore (checksum mismatch or disk error)"
+    # -k: keep the existing partition table. Without it, restoreparts recreates the whole
+    # disk's partition table from the image (and refuses here because CZLAB/Images are mounted).
+    sudo ocs-sr -b -k -cs -p true restoreparts $IMG ${win#/dev/} || fail "restore - see the Clonezilla messages above"
     ;;
   *)
     fail "unknown mode '$mode'"
