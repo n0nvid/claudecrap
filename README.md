@@ -112,7 +112,7 @@ have to stop and think. The word is the confirmation, so the script underneath d
 
 ```powershell
 $desk = [Environment]::GetFolderPath('Desktop'); $ws = New-Object -ComObject WScript.Shell
-# Icons: copy icons\*.ico (Fluent Emoji: Wireless, Alembic, Detective) to C:\RE\tools\icons\ first
+# Icons: copy icons\*.ico (Wireless, Alembic, Fingerprint; see icons/README.md) to C:\RE\tools\icons\ first
 foreach ($i in @(@{N='WiFi'; A=$true}, @{N='Lab'; A=$true}, @{N='Evidence'; A=$false})) {
     $p = Join-Path $desk "$($i.N).lnk"; $l = $ws.CreateShortcut($p)
     $l.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
