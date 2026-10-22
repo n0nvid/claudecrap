@@ -112,12 +112,12 @@ have to stop and think. The word is the confirmation, so the script underneath d
 
 ```powershell
 $desk = [Environment]::GetFolderPath('Desktop'); $ws = New-Object -ComObject WScript.Shell
-# Icons: copy icons\*.ico (Fluent Emoji: Wireless, Alembic, Detective) to C:\RE	ools\icons\ first
+# Icons: copy icons\*.ico (Fluent Emoji: Wireless, Alembic, Detective) to C:\RE\tools\icons\ first
 foreach ($i in @(@{N='WiFi'; A=$true}, @{N='Lab'; A=$true}, @{N='Evidence'; A=$false})) {
     $p = Join-Path $desk "$($i.N).lnk"; $l = $ws.CreateShortcut($p)
     $l.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
     $l.Arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"C:\RE\scripts\$($i.N).ps1`""
-    $l.WorkingDirectory = 'C:\RE\scripts'; $l.IconLocation = "C:\RE	ools\icons\$($i.N).ico,0"; $l.Save()
+    $l.WorkingDirectory = 'C:\RE\scripts'; $l.IconLocation = "C:\RE\tools\icons\$($i.N).ico,0"; $l.Save()
     if ($i.A) { $b = [IO.File]::ReadAllBytes($p); $b[0x15] = $b[0x15] -bor 0x20; [IO.File]::WriteAllBytes($p, $b) }  # "Run as administrator"
 }
 ```
