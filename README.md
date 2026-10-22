@@ -26,6 +26,7 @@ tools (section 2) are installed directly on the laptop.
 | `RedGlow/` | C# app: red screen-edge glow while online | source `C:\RE\dev\RedGlow`, built to `C:\RE\tools\RedGlow` |
 | `remnux/setup-fakenet.sh` | Turns the REMnux VM into the fake internet | run inside REMnux |
 | `scripts/SaveBaseline.ps1`, `RestoreLab.ps1`, `LabBoot.ps1` | Save or restore C: through Clonezilla | `C:\RE\scripts\` |
+| `scripts/BackupEvidence.ps1`, `RestoreEvidence.ps1`, `UsbDrive.ps1` | Copy E: to a USB drive and back | `C:REscripts` |
 | `clonezilla/lab.sh` | The unattended save/restore script Clonezilla runs | `lab\lab.sh` on the CZLAB partition |
 | `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
 | `MEMORY.md` | Older (2026-10-20) setup handoff; this README replaces it | |
@@ -228,6 +229,15 @@ clean too. Anything you want to **keep** from a detonation goes on **E:**, which
   `/etc/fstab` with `fuse.vmhgfs-fuse`). Save pcaps and INetSim logs there.
 
 Malware running on Windows *can* reach E:, so it can tamper with evidence. It can't reach the clean image.
+
+**Backing E: up to a USB drive** (desktop shortcuts, no admin needed):
+- **BackupEvidence** (`scripts\BackupEvidence.ps1 [-Drive F]`): copies all of E: to `<USB>:\EvidenceBackup\yyyy-MM-dd_HHmm`,
+  keeping folders, timestamps and attributes. Every run is a new dated folder, so older copies are never overwritten. It checks
+  that every file arrived with the same size; the log goes to `EvidenceBackup\backup-log.txt`.
+- **RestoreEvidence** (`scripts\RestoreEvidence.ps1`): pick a backup (newest first), then **EXACT** (E: becomes identical,
+  extra files on E: are deleted) or **MERGE** (copy the backup over E:, keep everything else). It checks every file afterwards.
+- Both refuse while GoDark is active (`-Force` overrides), and both share `UsbDrive.ps1`.
+- Defender, here or on another PC, may quarantine malware samples during a copy. The scripts then report those files as failed.
 
 To rebuild it: `Resize-Partition -DriveLetter C -Size 426GB`, then
 `New-Partition -DiskNumber 0 -UseMaximumSize -DriveLetter E` and format it NTFS with the label `Evidence`. Then
