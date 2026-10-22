@@ -24,6 +24,8 @@ the internet. A clean disk image gets the machine back afterwards.
 | `scripts/WifiVault.ps1` | Passphrase-encrypted Wi-Fi profile storage, shared by both | `C:\RE\scripts\` |
 | `RedGlow/` | C# app: red screen-edge glow while online | source `C:\RE\dev\RedGlow`, built to `C:\RE\tools\RedGlow` |
 | `remnux/setup-fakenet.sh` | Turns the REMnux VM into the fake internet | run inside REMnux |
+| `scripts/SaveBaseline.ps1`, `RestoreLab.ps1`, `LabBoot.ps1` | Save or restore C: through Clonezilla | `C:\RE\scripts\` |
+| `clonezilla/lab.sh` | The unattended save/restore script Clonezilla runs | `lab\lab.sh` on the CZLAB partition |
 | `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
 | `MEMORY.md` | Older (2026-10-20) setup handoff; this README replaces it | |
 
@@ -164,19 +166,54 @@ from the tray, and publish again.
 3. Run the sample. Capture traffic on REMnux (Wireshark/tcpdump on `ens33`); INetSim logs are in
    `/var/log/inetsim/`. WFC will still block unknown programs, so allow them or lower WFC's
    profile while dark if you want to see their traffic.
-4. **Restore the clean disk image.**
+4. Copy anything you want to keep off the machine through REMnux, then run **RestoreLab**.
 5. Run **GoOnline**. Never go online after a detonation without restoring first.
 
-## 9. In progress: on-disk recovery image (not done yet)
+## 9. On-disk recovery image (Clonezilla)
 
-Plan: shrink C: to about 475 GB. Add a small FAT32 partition with Clonezilla Live 3.3.3-37
-(`C:\RE\installers\clonezilla`, SHA-256 `bbb02b409708cf37774debe00f96c642c59c48ebb216f7349dc2252f705ff10e`)
-and an image partition with a Linux partition type and ext4, which Windows can't mount. Add a one-time UEFI boot entry, so that
-`SaveBaseline.ps1` / `RestoreLab.ps1` reboot into Clonezilla, save or restore **only** the C:
-partition unattended (with SHA-1 checksums verified before restore), and reboot back into Windows.
-On 2026-10-22: BitLocker is off, Secure Boot is off, and Windows uses 109 GB of the 954 GB NVMe disk.
+Disk layout (954 GB NVMe, GPT):
 
-Same-disk caveat: malware with admin rights can still wipe or encrypt the image partition. A USB copy is only
+| # | Partition | Size | Notes |
+|---|---|---|---|
+| 1 | EFI system | 0.2 GB | |
+| 2 | MSR | 16 MB | |
+| 3 | **C:** | 476 GB | the only partition that gets saved or restored |
+| 5 | **CZLAB** | 2 GB | FAT32, no drive letter. Clonezilla Live 3.3.3-37 + `lab/lab.sh` + `lab/mode` |
+| 6 | **Images** | 475 GB | Linux partition type, ext4 (formatted by the first save). Windows can't mount it |
+| 4 | Windows Recovery | 0.9 GB | |
+
+**Desktop shortcuts** (run as admin):
+- **SaveBaseline:** type `SAVE`. Reboots into Clonezilla, which images C: to `lab-clean` (with SHA-1 checksums) and reboots back
+  into Windows. The new image is saved as `lab-clean.new` and only replaces `lab-clean` once it succeeds; the old one is kept as `lab-clean.prev`.
+  It refuses to run while GoDark is active.
+- **RestoreLab:** type `RESTORE`. Reboots into Clonezilla, which checks the checksums, restores `lab-clean` over C:, and reboots
+  back into Windows. **Everything on C: since the baseline is lost**, including `C:\RE\dev`, so push your work first.
+
+**How it works:**
+- `LabBoot.ps1` writes `save` or `restore` to `lab/mode` on CZLAB (mounting it briefly), then sets a **one-time** firmware boot
+  (`bcdedit /set {fwbootmgr} bootsequence <id>`) to the "Lab Clonezilla" entry and reboots. Windows stays first in the normal boot order.
+- The CZLAB GRUB menu defaults to the `lab-auto` entry (5-second timeout). That entry boots Clonezilla with
+  `ocs_live_batch="yes" ocs_live_run="bash /run/live/medium/lab/lab.sh"`.
+- `lab.sh` finds the partitions by GPT partition GUID, runs `ocs-sr -b ... saveparts` or `ocs-sr -b -cs ... restoreparts`
+  on C: only, sets the mode back to `restore` after a save, and reboots. If anything fails, it says so on screen and reboots after 10 minutes.
+
+**To rebuild it:**
+1. Shrink C: (`Resize-Partition -DriveLetter C -Size 476GB`). Create a 2 GB basic-data partition, format it
+   FAT32 with the label `CZLAB`, and run `Set-Partition -NoDefaultDriveLetter $true`. Create the remaining space with
+   `-GptType '{0fc63daf-8483-4772-8e79-3d69d8477de4}'` (Linux) and leave it unformatted.
+2. Extract `clonezilla-live-3.3.3-37-amd64.zip` (SHA-256
+   `bbb02b409708cf37774debe00f96c642c59c48ebb216f7349dc2252f705ff10e`) onto CZLAB. Copy `clonezilla/lab.sh` to
+   `lab\lab.sh` with LF line endings, **after updating the two partition GUIDs** from `Get-Partition`. Create `lab\mode`
+   containing `restore`.
+3. In `boot\grub\grub.cfg`: copy the `live-default` entry as `--id lab-auto` with the parameters above
+   (`locales=en_US.UTF-8 keyboard-layouts=us`), put it first, and set `default="lab-auto"` and `timeout="5"`.
+4. Add the firmware entry: back up first (`bcdedit /export`), then
+   `bcdedit /copy {bootmgr} /d "Lab Clonezilla"` → `bcdedit /set <id> device partition=<CZLAB letter>:` →
+   `bcdedit /set <id> path \EFI\boot\bootx64.efi` → `bcdedit /set {fwbootmgr} displayorder <id> /addlast`.
+   Secure Boot is off on this machine. If it's on, the firmware has to trust the Microsoft 3rd-party UEFI CA.
+5. Copy `scripts\LabBoot.ps1`, `SaveBaseline.ps1` and `RestoreLab.ps1` to `C:\RE\scripts\` and create shortcuts as in section 5.
+
+Same-disk caveat: malware with admin rights can still wipe or encrypt the image partition (or CZLAB). A USB copy is only
 exposed if it's plugged in while infected Windows is running. Plugging it in only while booted into
 Clonezilla keeps it out of reach; a drive with a hardware write-protect switch is better still.
 
