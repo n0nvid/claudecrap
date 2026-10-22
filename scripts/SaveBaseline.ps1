@@ -12,9 +12,13 @@
 
 .PARAMETER Force
     Save even though GoDark.ps1 appears to be active.
+
+.PARAMETER Confirmed
+    Skip the "Type SAVE" prompt (Lab.ps1 has already asked).
 #>
 param(
-    [switch]$Force
+    [switch]$Force,
+    [switch]$Confirmed
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,12 +30,14 @@ if ((Test-Path (Join-Path $PSScriptRoot '.godark-state.json')) -and -not $Force)
     exit 1
 }
 
-Write-Host ""
-Write-Host "  This saves the CURRENT state of C: as the clean baseline.  " -BackgroundColor DarkYellow -ForegroundColor Black
-Write-Host "  Only do this on a clean machine. Save your work first; the PC will reboot.  " -BackgroundColor DarkYellow -ForegroundColor Black
-if ((Read-Host "  Type SAVE to continue") -cne 'SAVE') {
-    Write-Host "[!] Cancelled." -ForegroundColor Red
-    exit 1
+if (-not $Confirmed) {
+    Write-Host ""
+    Write-Host "  This saves the CURRENT state of C: as the clean baseline.  " -BackgroundColor DarkYellow -ForegroundColor Black
+    Write-Host "  Only do this on a clean machine. Save your work first; the PC will reboot.  " -BackgroundColor DarkYellow -ForegroundColor Black
+    if ((Read-Host "  Type SAVE to continue") -cne 'SAVE') {
+        Write-Host "[!] Cancelled." -ForegroundColor Red
+        exit 1
+    }
 }
 
 Invoke-LabBoot save

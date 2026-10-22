@@ -26,6 +26,7 @@ tools (section 2) are installed directly on the laptop.
 | `RedGlow/` | C# app: red screen-edge glow while online | source `C:\RE\dev\RedGlow`, built to `C:\RE\tools\RedGlow` |
 | `remnux/setup-fakenet.sh` | Turns the REMnux VM into the fake internet | run inside REMnux |
 | `scripts/SaveBaseline.ps1`, `RestoreLab.ps1`, `LabBoot.ps1` | Save or restore C: through Clonezilla | `C:\RE\scripts\` |
+| `scripts/WiFi.ps1`, `Lab.ps1`, `Evidence.ps1`, `Menu.ps1` | The three desktop menus | `C:\RE\scripts\` |
 | `scripts/BackupEvidence.ps1`, `RestoreEvidence.ps1`, `UsbDrive.ps1` | Copy E: to a USB drive and back | `C:\RE\scripts\` |
 | `clonezilla/lab.sh` | The unattended save/restore script Clonezilla runs | `lab\lab.sh` on the CZLAB partition |
 | `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
@@ -97,16 +98,27 @@ Copy `scripts\*.ps1` to `C:\RE\scripts\` (keep all three together). Both scripts
 **GoOnline.ps1**: asks you to type `YES` to confirm the disk image has been restored, removes the REMnux
 gateway and DNS, re-enables the adapters, asks for the passphrase and restores Wi-Fi, then waits for internet.
 
-Desktop shortcuts that run as admin (they use Windows PowerShell 5.1, so test changes in 5.1):
+### Desktop: three menus
+
+Each desktop shortcut opens a menu where you type a word (any case). The word is the confirmation, so the script
+underneath doesn't ask again. They share `Menu.ps1` and run in Windows PowerShell 5.1, so test changes in 5.1.
+
+| Shortcut | Admin | Type | Runs |
+|---|---|---|---|
+| **WiFi** (`WiFi.ps1`) | yes | `DARK` / `ONLINE` | `GoDark.ps1` / `GoOnline.ps1`. The menu shows whether you're dark right now |
+| **Lab** (`Lab.ps1`) | yes | `BACKUP` / `RESTORE` | `SaveBaseline.ps1 -Confirmed` / `RestoreLab.ps1 -Confirmed` (section 9). Both reboot |
+| **Evidence** (`Evidence.ps1`) | no | `BACKUP` / `RESTORE` | `BackupEvidence.ps1` / `RestoreEvidence.ps1` (E: to USB and back) |
+| **REMnux** | no | | opens and starts the REMnux VM (section 7) |
 
 ```powershell
 $desk = [Environment]::GetFolderPath('Desktop'); $ws = New-Object -ComObject WScript.Shell
-foreach ($i in @(@{N='GoDark'; I='imageres.dll,100'}, @{N='GoOnline'; I='imageres.dll,101'})) {
+foreach ($i in @(@{N='WiFi'; I='imageres.dll,100'; A=$true}, @{N='Lab'; I='shell32.dll,7'; A=$true},
+                 @{N='Evidence'; I='shell32.dll,4'; A=$false})) {
     $p = Join-Path $desk "$($i.N).lnk"; $l = $ws.CreateShortcut($p)
     $l.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
     $l.Arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"C:\RE\scripts\$($i.N).ps1`""
     $l.WorkingDirectory = 'C:\RE\scripts'; $l.IconLocation = "$env:SystemRoot\System32\$($i.I)"; $l.Save()
-    $b = [IO.File]::ReadAllBytes($p); $b[0x15] = $b[0x15] -bor 0x20; [IO.File]::WriteAllBytes($p, $b)  # "Run as administrator"
+    if ($i.A) { $b = [IO.File]::ReadAllBytes($p); $b[0x15] = $b[0x15] -bor 0x20; [IO.File]::WriteAllBytes($p, $b) }  # "Run as administrator"
 }
 ```
 
@@ -166,12 +178,12 @@ from the tray, and publish again.
 ## 8. Detonation workflow
 
 1. Online: write code, push it off the machine.
-2. Start REMnux and run **GoDark**. Wait for **DARK** and check the red glow has gone.
+2. Start REMnux (**REMnux** shortcut), then **WiFi** → `DARK`. Wait for **DARK** and check the red glow has gone.
 3. Run the sample. Capture traffic on REMnux (Wireshark/tcpdump on `ens33`); INetSim logs are in
    `/var/log/inetsim/`. WFC will still block unknown programs, so allow them or lower WFC's
    profile while dark if you want to see their traffic.
-4. Copy anything you want to keep off the machine through REMnux, then run **RestoreLab**.
-5. Run **GoOnline**. Never go online after a detonation without restoring first.
+4. Put anything you want to keep on E:, then **Lab** → `RESTORE`.
+5. **WiFi** → `ONLINE`. Never go online after a detonation without restoring first.
 
 ## 9. On-disk recovery image (Clonezilla)
 
@@ -188,11 +200,11 @@ partitions by label (`CZLAB`) and GPT partition GUID, never by number.
 | 5 | **Images** | 475 GB | Linux partition type, ext4 (formatted by the first save). Windows can't mount it |
 | 6 | Windows Recovery | 0.9 GB | |
 
-**Desktop shortcuts** (run as admin):
-- **SaveBaseline:** type `SAVE`. Reboots into Clonezilla, which images C: to `lab-clean` (with SHA-1 checksums) and reboots back
+**Desktop: Lab** (run as admin):
+- **Lab → `BACKUP`** (`SaveBaseline.ps1`; typing `SAVE` when run directly). Reboots into Clonezilla, which images C: to `lab-clean` (with SHA-1 checksums) and reboots back
   into Windows. The new image is saved as `lab-clean.new` and only replaces `lab-clean` once it succeeds; the old one is kept as `lab-clean.prev`.
   It refuses to run while GoDark is active.
-- **RestoreLab:** type `RESTORE`. Reboots into Clonezilla, which checks the checksums, restores `lab-clean` over C:, and reboots
+- **Lab → `RESTORE`** (`RestoreLab.ps1`). Reboots into Clonezilla, which checks the checksums, restores `lab-clean` over C:, and reboots
   back into Windows. **Everything on C: since the baseline is lost**, including `C:\RE\dev`, so push your work first.
 
 **How it works:**
@@ -217,7 +229,7 @@ partitions by label (`CZLAB`) and GPT partition GUID, never by number.
    `bcdedit /copy {bootmgr} /d "Lab Clonezilla"` → `bcdedit /set <id> device partition=<CZLAB letter>:` →
    `bcdedit /set <id> path \EFI\boot\bootx64.efi` → `bcdedit /set {fwbootmgr} displayorder <id> /addlast`.
    Secure Boot is off on this machine. If it's on, the firmware has to trust the Microsoft 3rd-party UEFI CA.
-5. Copy `scripts\LabBoot.ps1`, `SaveBaseline.ps1` and `RestoreLab.ps1` to `C:\RE\scripts\` and create shortcuts as in section 5.
+5. Copy `scripts\LabBoot.ps1`, `SaveBaseline.ps1` and `RestoreLab.ps1` to `C:\RE\scripts\` along with `Lab.ps1` and `Menu.ps1`, and create the shortcuts as in section 5.
 
 ### Evidence partition (E:)
 
@@ -230,11 +242,11 @@ clean too. Anything you want to **keep** from a detonation goes on **E:**, which
 
 Malware running on Windows *can* reach E:, so it can tamper with evidence. It can't reach the clean image.
 
-**Backing E: up to a USB drive** (desktop shortcuts, no admin needed):
-- **BackupEvidence** (`scripts\BackupEvidence.ps1 [-Drive F]`): copies all of E: to `<USB>:\EvidenceBackup\yyyy-MM-dd_HHmm`,
+**Backing E: up to a USB drive** (desktop **Evidence** menu, no admin needed):
+- **Evidence → `BACKUP`** (`scripts\BackupEvidence.ps1 [-Drive F]`): copies all of E: to `<USB>:\EvidenceBackup\yyyy-MM-dd_HHmm`,
   keeping folders, timestamps and attributes. Every run is a new dated folder, so older copies are never overwritten. It checks
   that every file arrived with the same size; the log goes to `EvidenceBackup\backup-log.txt`.
-- **RestoreEvidence** (`scripts\RestoreEvidence.ps1`): pick a backup (newest first), then **EXACT** (E: becomes identical,
+- **Evidence → `RESTORE`** (`scripts\RestoreEvidence.ps1`): pick a backup (newest first), then **EXACT** (E: becomes identical,
   extra files on E: are deleted) or **MERGE** (copy the backup over E:, keep everything else). It checks every file afterwards.
 - Both refuse while GoDark is active (`-Force` overrides), and both share `UsbDrive.ps1`.
 - Defender, here or on another PC, may quarantine malware samples during a copy. The scripts then report those files as failed.

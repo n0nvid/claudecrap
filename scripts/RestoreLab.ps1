@@ -9,17 +9,25 @@
 
     EVERYTHING written to C: since the baseline was saved is lost, including your own files.
     Push or copy off anything you want to keep first.
+
+.PARAMETER Confirmed
+    Skip the "Type RESTORE" prompt (Lab.ps1 has already asked).
 #>
+param(
+    [switch]$Confirmed
+)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'LabBoot.ps1')
 
-Write-Host ""
-Write-Host "  This wipes C: back to the clean baseline.  " -BackgroundColor Red -ForegroundColor White
-Write-Host "  Everything changed on C: since the baseline is lost. The PC will reboot.  " -BackgroundColor Red -ForegroundColor White
-if ((Read-Host "  Type RESTORE to continue") -cne 'RESTORE') {
-    Write-Host "[!] Cancelled." -ForegroundColor Red
-    exit 1
+if (-not $Confirmed) {
+    Write-Host ""
+    Write-Host "  This wipes C: back to the clean baseline.  " -BackgroundColor Red -ForegroundColor White
+    Write-Host "  Everything changed on C: since the baseline is lost. The PC will reboot.  " -BackgroundColor Red -ForegroundColor White
+    if ((Read-Host "  Type RESTORE to continue") -cne 'RESTORE') {
+        Write-Host "[!] Cancelled." -ForegroundColor Red
+        exit 1
+    }
 }
 
 Invoke-LabBoot restore
