@@ -158,6 +158,9 @@ Step "Starting Procmon (host activity -> procmon.pml)"
 & "$Sys\Procmon64.exe" /AcceptEula /Quiet /Minimized /BackingFile $pml
 Start-Sleep 3
 
+# Mark the start time so we can pull just this run's Sysmon events afterward.
+$runStart = Get-Date
+
 # --- Detonate ----------------------------------------------------------------------------
 if ($NoRun) {
     Warn "NoRun: skipping sample execution. Waiting $Minutes min to exercise the harness."
@@ -179,6 +182,18 @@ Write-Host ""
 Step "Stopping Procmon"
 & "$Sys\Procmon64.exe" /Terminate | Out-Null
 Start-Sleep 2
+
+# Sysmon runs all the time, so there's a record even if Procmon missed something. Export this run's.
+$SysmonLog = 'Microsoft-Windows-Sysmon/Operational'
+if (Get-Service Sysmon64 -ErrorAction SilentlyContinue) {
+    Step "Exporting Sysmon events"
+    try { & wevtutil epl $SysmonLog (Join-Path $case 'sysmon.evtx') /ow:true } catch { Warn "sysmon.evtx export failed: $_" }
+    try {
+        Get-WinEvent -FilterHashtable @{ LogName = $SysmonLog; StartTime = $runStart } -ErrorAction SilentlyContinue |
+            Select-Object TimeCreated, Id, @{n='Event';e={($_.Message -split "`n")[0].TrimEnd(':')}}, Message |
+            Export-Csv (Join-Path $case 'sysmon_window.csv') -NoTypeInformation
+    } catch { Warn "sysmon window CSV failed: $_" }
+}
 
 if ($remnuxUp) {
     Step "Stopping tcpdump and collecting INetSim logs on REMnux"
@@ -220,6 +235,18 @@ foreach ($f in (Get-ChildItem $before -Filter 'drops_*.csv' -EA SilentlyContinue
 foreach ($pair in @(@('services','services.csv'),@('scheduled tasks','tasks.csv'),@('processes','processes.csv'))) {
     Diff-Lines $pair[0] $pair[1]
 }
+# Sysmon event-type counts for this run (high-signal: 1=proc, 3=net, 11=file, 13=reg, 22=DNS)
+$swin = Join-Path $case 'sysmon_window.csv'
+if (Test-Path $swin) {
+    $names = @{1='ProcessCreate';3='NetworkConnect';5='ProcessTerminate';7='ImageLoad';8='CreateRemoteThread';
+               11='FileCreate';12='RegKey';13='RegValue';15='FileStream';22='DnsQuery';23='FileDelete';25='ProcessTampering'}
+    "== Sysmon events this run (by type) ==" | Add-Content $sum
+    Import-Csv $swin | Group-Object Id | Sort-Object { [int]$_.Name } | ForEach-Object {
+        "  id $($_.Name) $($names[[int]$_.Name]) : $($_.Count)" | Add-Content $sum
+    }
+    "" | Add-Content $sum
+}
+
 # INetSim-observed destinations, if we captured them
 $inetReport = Get-ChildItem (Join-Path $netDir 'inetsim\report') -Filter '*.txt' -EA SilentlyContinue | Select-Object -First 1
 if ($inetReport) {
@@ -232,6 +259,7 @@ Write-Host "  DONE - $caseId  " -BackgroundColor DarkGreen -ForegroundColor Whit
 Write-Host "  Case folder : $case"
 Write-Host "  Summary     : $sum"
 Write-Host "  Procmon log : $pml  (open in Procmon to filter by the sample)"
+if (Test-Path (Join-Path $case 'sysmon.evtx')) { Write-Host "  Sysmon      : sysmon.evtx + sysmon_window.csv" }
 if ($remnuxUp) { Write-Host "  Network     : $netDir  (capture.pcap + inetsim\)" }
 Write-Host ""
 Warn "When finished: back up anything you need (Evidence -> BACKUP), then Lab -> RESTORE before going online."
