@@ -1,0 +1,1 @@
+- [RE Lab Setup](re-lab-setup.md) — throwaway bare-metal RE lab (Udemy RE course); WFC firewall; malware-phase sandbox plan parked

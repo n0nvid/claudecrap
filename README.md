@@ -1,0 +1,191 @@
+# RE / Malware-Analysis Lab — Rebuild Guide
+
+How to rebuild this lab from a clean Windows 11 install. State as of **2026-10-22**.
+
+The laptop is a **throwaway, bare-metal** lab. Windows itself is the victim machine:
+malware runs on it while it is cut off from real networks, and a REMnux VM plays the part of
+the internet. A clean disk image gets the machine back afterwards.
+
+```
+ Windows laptop (victim)                    REMnux VM (VMware)
+ ───────────────────────                    ──────────────────────────
+ Wi-Fi / Ethernet: OFF (GoDark)             Network: Host-only (VMnet1)
+ VMnet1 host adapter 192.168.34.1  ◄──────► 192.168.34.2 (static)
+   default gateway -> 192.168.34.2          INetSim (HTTP/S, DNS, SMTP, POP3, FTP)
+   DNS             -> 192.168.34.2          every connection to any IP -> INetSim
+```
+
+## Repo layout
+
+| Path | What it is | Lives on the machine at |
+|---|---|---|
+| `scripts/GoDark.ps1` | Cuts off all real networks, routes everything to REMnux | `C:\RE\scripts\` |
+| `scripts/GoOnline.ps1` | Undoes GoDark and restores Wi-Fi | `C:\RE\scripts\` |
+| `scripts/WifiVault.ps1` | Passphrase-encrypted Wi-Fi profile storage, shared by both | `C:\RE\scripts\` |
+| `RedGlow/` | C# app: red screen-edge glow while online | source `C:\RE\dev\RedGlow`, built to `C:\RE\tools\RedGlow` |
+| `remnux/setup-fakenet.sh` | Turns the REMnux VM into the fake internet | run inside REMnux |
+| `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
+| `MEMORY.md` | Older (2026-10-20) setup handoff; this README replaces it | |
+
+---
+
+## 1. Host preparation
+
+Run in an **admin** PowerShell window.
+
+```powershell
+# Free the CPU's virtualization extensions for VMware (turns off Hyper-V, VBS, Memory Integrity, WSL2)
+bcdedit /set hypervisorlaunchtype off
+# Also turn off Memory Integrity: Windows Security > Device security > Core isolation.
+# Reboot. To undo: bcdedit /set hypervisorlaunchtype auto
+
+# Folder layout
+New-Item -ItemType Directory -Force C:\RE\tools, C:\RE\dev, C:\RE\installers, C:\RE\scripts, C:\RE\vms
+
+# Defender stays ON; exclude only your own source code folder
+Add-MpPreference -ExclusionPath C:\RE\dev
+```
+
+Explorer: turn on **file name extensions** and **hidden items**.
+
+## 2. Toolchain and RE tools
+
+- **Dev:** Git, Python 3.12, .NET SDK 10 (and 8), Go, Rust (stable), OpenJDK 21, VS Code, 7-Zip.
+- **RE tools** (in `C:\RE\tools`): Ghidra, IDA Free, x64dbg, dnSpy (dnSpyEx), PE-bear, CFF Explorer,
+  pestudio, Detect It Easy, HxD, YARA, capa, FLOSS (standalone exe), Sysinternals Suite (on PATH),
+  Wireshark.
+- **Python RE venv:** `python -m venv C:\RE\tools\revenv`, then
+  `C:\RE\tools\revenv\Scripts\pip install pefile capstone yara-python oletools`.
+
+## 3. VMware Workstation Pro
+
+Install VMware Workstation Pro (26.x, free for personal use). It creates **VMnet1 (host-only)**
+and **VMnet8 (NAT)**. On this machine VMnet1 is `192.168.34.0/24` with the host at `.1`. If a new
+install picks a different subnet, change `$RemnuxIP` in `GoDark.ps1` and `IP=` in `setup-fakenet.sh` to match.
+
+## 4. Outbound firewall: Windows Firewall Control (Malwarebytes)
+
+- Download `wfc6setup.exe` from binisoft.org and run the **GUI installer**.
+  **Don't install it with `winget --silent`**: that put it in a relative folder and broke the service.
+- Set the profile to **Medium** (block all outbound without a rule) and notifications to **Display**.
+  Unknown programs are blocked first; you answer the popup afterwards.
+- WFC rules are ordinary Windows Firewall rules. To back them up and restore them:
+  ```powershell
+  netsh advfirewall export "$env:USERPROFILE\Documents\FirewallBackup\firewall-<date>.wfw"
+  netsh advfirewall import "<that file>"
+  ```
+- WFC blocks `curl.exe` and `git` until you allow them; `pwsh` downloads are allowed.
+
+## 5. GoDark / GoOnline
+
+Copy `scripts\*.ps1` to `C:\RE\scripts\` (keep all three together). Both scripts need admin.
+
+**GoDark.ps1**
+1. Saves every Wi-Fi profile, with its password, to `wifi-profiles.enc`, encrypted with a passphrase
+   you type (PBKDF2-SHA256 → AES-256-CBC + HMAC-SHA256). It decrypts the file straight back to check it
+   before deleting anything.
+2. Deletes the saved Wi-Fi profiles so nothing can silently rejoin a network.
+3. Disables every network adapter except VMnet1, and records which ones in `.godark-state.json`.
+4. Sets VMnet1's default gateway (ActiveStore, so it's gone after a reboot) and DNS to REMnux, 192.168.34.2.
+5. Checks: no other adapter is up, no Wi-Fi profiles are left, and 1.1.1.1, 8.8.8.8 and a Cloudflare IPv6 address only
+   route through VMnet1. Prints **DARK** or **NOT DARK** (exit code 1).
+
+**GoOnline.ps1**: asks you to type `YES` to confirm the disk image has been restored, removes the REMnux
+gateway and DNS, re-enables the adapters, asks for the passphrase and restores Wi-Fi, then waits for internet.
+
+Desktop shortcuts that run as admin (they use Windows PowerShell 5.1, so test changes in 5.1):
+
+```powershell
+$desk = [Environment]::GetFolderPath('Desktop'); $ws = New-Object -ComObject WScript.Shell
+foreach ($i in @(@{N='GoDark'; I='imageres.dll,100'}, @{N='GoOnline'; I='imageres.dll,101'})) {
+    $p = Join-Path $desk "$($i.N).lnk"; $l = $ws.CreateShortcut($p)
+    $l.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+    $l.Arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"C:\RE\scripts\$($i.N).ps1`""
+    $l.WorkingDirectory = 'C:\RE\scripts'; $l.IconLocation = "$env:SystemRoot\System32\$($i.I)"; $l.Save()
+    $b = [IO.File]::ReadAllBytes($p); $b[0x15] = $b[0x15] -bor 0x20; [IO.File]::WriteAllBytes($p, $b)  # "Run as administrator"
+}
+```
+
+## 6. RedGlow (red screen edge while online)
+
+A click-through, always-on-top overlay on every monitor. It shows whenever any adapter that isn't a VMware adapter
+has a default gateway, meaning you are **not** dark. The tray icon (shield) shows the status and has an Exit item.
+FLARE-VM does **not** have this feature; it was written for this lab.
+
+```powershell
+Copy-Item -Recurse RedGlow C:\RE\dev\RedGlow
+dotnet publish C:\RE\dev\RedGlow -c Release -o C:\RE\tools\RedGlow
+# Start at login
+$ws = New-Object -ComObject WScript.Shell
+$l = $ws.CreateShortcut((Join-Path ([Environment]::GetFolderPath('Startup')) 'RedGlow.lnk'))
+$l.TargetPath = 'C:\RE\tools\RedGlow\RedGlow.exe'; $l.WorkingDirectory = 'C:\RE\tools\RedGlow'; $l.Save()
+```
+
+To change the strength or colour, edit `MaxAlpha` and `Red/Green/Blue` in `GlowWindow.cs`, exit RedGlow
+from the tray, and publish again.
+
+## 7. REMnux fake internet
+
+1. **Download** the VMware OVA from <https://docs.remnux.org/install-distro/get-virtual-appliance>
+   (used: `202610b/remnux-noble-amd64.ova`, SHA-256
+   `060acb0087c7ae6d138d7a994f5a1daf957fe3f9d0fdf72012b2c43e88876ef9`). It's about 8 GB. Use
+   `Invoke-WebRequest ... -Resume` if the connection drops.
+2. **Import:**
+   ```powershell
+   & 'C:\Program Files\VMware\VMware Workstation\OVFTool\ovftool.exe' --acceptAllEulas --name=REMnux --lax `
+       C:\RE\installers\remnux\remnux-noble-amd64.ova C:\RE\vms\
+   ```
+3. **Fix the .vmx** (`C:\RE\vms\REMnux\REMnux.vmx`):
+   - `virtualhw.version = "99"` → `"21"`. The import writes 99, and VMware refuses to boot it.
+   - `ethernet0.connectionType = "nat"` → `"hostonly"`. **REMnux must never have a real network.**
+4. **Start it and run the setup script** (default login `remnux` / `malware`):
+   ```powershell
+   $vr = 'C:\Program Files\VMware\VMware Workstation\vmrun.exe'; $v = 'C:\RE\vms\REMnux\REMnux.vmx'
+   & $vr -T ws start $v nogui
+   $g = '-T','ws','-gu','remnux','-gp','malware'
+   & $vr @g CopyFileFromHostToGuest $v .\remnux\setup-fakenet.sh /tmp/setup-fakenet.sh   # must have LF line endings
+   & $vr @g runProgramInGuest $v /bin/bash /tmp/setup-fakenet.sh
+   & $vr @g CopyFileFromGuestToHost $v /tmp/setup.log .\setup.log; Get-Content .\setup.log
+   ```
+   The script sets the static IP 192.168.34.2 (and stops cloud-init from rewriting it), points INetSim at that address with
+   DNS enabled (the original config is saved as `/etc/inetsim/inetsim.conf.orig`), and installs the
+   **`lab-fakenet.service`**. That service adds an iptables `REDIRECT` for all traffic arriving on `ens33`, then runs INetSim, at every boot.
+5. **Take a snapshot:** `& $vr -T ws snapshot $v 'Clean fakenet'`
+6. **Test from Windows** (works while still online):
+   ```powershell
+   Resolve-DnsName anything-fake.xyz -Server 192.168.34.2 -DnsOnly   # -> 192.168.34.2
+   Invoke-WebRequest http://192.168.34.2/payload.exe                 # -> 200, "INetSim HTTP Server"
+   ```
+
+## 8. Detonation workflow
+
+1. Online: write code, push it off the machine.
+2. Start REMnux and run **GoDark**. Wait for **DARK** and check the red glow has gone.
+3. Run the sample. Capture traffic on REMnux (Wireshark/tcpdump on `ens33`); INetSim logs are in
+   `/var/log/inetsim/`. WFC will still block unknown programs, so allow them or lower WFC's
+   profile while dark if you want to see their traffic.
+4. **Restore the clean disk image.**
+5. Run **GoOnline**. Never go online after a detonation without restoring first.
+
+## 9. In progress: on-disk recovery image (not done yet)
+
+Plan: shrink C: to about 475 GB. Add a small FAT32 partition with Clonezilla Live 3.3.3-37
+(`C:\RE\installers\clonezilla`, SHA-256 `bbb02b409708cf37774debe00f96c642c59c48ebb216f7349dc2252f705ff10e`)
+and an image partition with a Linux partition type and ext4, which Windows can't mount. Add a one-time UEFI boot entry, so that
+`SaveBaseline.ps1` / `RestoreLab.ps1` reboot into Clonezilla, save or restore **only** the C:
+partition unattended (with SHA-1 checksums verified before restore), and reboot back into Windows.
+On 2026-10-22: BitLocker is off, Secure Boot is off, and Windows uses 109 GB of the 954 GB NVMe disk.
+
+Same-disk caveat: malware with admin rights can still wipe or encrypt the image partition. A USB copy is only
+exposed if it's plugged in while infected Windows is running. Plugging it in only while booted into
+Clonezilla keeps it out of reach; a drive with a hardware write-protect switch is better still.
+
+## Gotchas
+
+- `ovftool` import → `virtualhw.version = "99"` → "hardware version not supported". Set it to 21.
+- WFC blocks `curl.exe`/`git` by default; allow them in WFC when you need them.
+- Scripts run by the desktop shortcuts use **Windows PowerShell 5.1**. In 5.1, `Get-Content -Raw` strings
+  serialize through `ConvertTo-Json` as objects, not plain strings. That broke the Wi-Fi vault once;
+  `WifiVault.ps1` uses `[IO.File]::ReadAllText`.
+- Scripts copied into REMnux need **LF** line endings.
+- `netsh wlan show interfaces` needs Location permission; `netsh wlan show profiles` doesn't.

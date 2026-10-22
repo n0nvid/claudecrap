@@ -1,0 +1,21 @@
+---
+name: re-lab-setup
+description: This laptop is a dedicated RE/malware-dev lab; host setup state and remaining steps
+metadata:
+  node_type: memory
+  type: project
+  originSessionId: 62b6b320-9a62-4fe8-a4f3-7ebc85ffb11a
+  modified: 2026-10-21T00:08:29.936Z
+---
+
+This bare-metal Windows 11 Home laptop is a **dedicated, throwaway RE/malware lab** (user will wipe it if needed). User is taking the Udemy course "Reverse Engineering and Malware Analysis Fundamentals": general software RE first (host stays online, no isolation needed), malware analysis later.
+
+**Done (2026-10-20):** Disabled Hyper-V/VBS/HVCI/Credential Guard (`bcdedit hypervisorlaunchtype off` + registry; reboot required; WSL2 now off — reverse with `hypervisorlaunchtype auto`). Installed dev toolchain (Git, Python 3.12, .NET SDK 10+8, Go 1.27, Rust stable, OpenJDK 21) and RE tools in `C:\RE\tools`: Ghidra 12.1.4, capa 10, Sysinternals (151, on PATH), x64dbg, PE-bear, HxD, Detect It Easy, YARA, dnSpy; Wireshark pre-existing. Layout: `C:\RE\{tools,dev,installers}`.
+
+Also installed: 7-Zip, VS Code, Python RE venv (`C:\RE\tools\revenv`: pefile/capstone/yara-python/oletools), FLOSS 3.2 standalone. Defender exclusion on `C:\RE\dev`. Explorer shows extensions+hidden. WT updated to 1.25 (Shift+Enter fixed; `~/.claude/keybindings.json` binds shift+enter→newline). Desktop\RE Tools folder has GUI shortcuts (Win11 blocks scripted taskbar pinning; user pins manually). **VMware Workstation Pro 26.0.0 installed** — VMnet1=host-only, VMnet8=NAT. **Outbound firewall = Malwarebytes Windows Firewall Control** (service `wfcs`, Medium filtering + prompts; Portmaster was tried and removed). WFC rules are plain Windows Firewall rules; backup via `netsh advfirewall export` at `Documents\FirewallBackup\firewall-2026-10-20.wfw` (241 outbound rules, default outbound=Block). User WANTS block-first (first attempt fails) — don't suggest hold-and-prompt tools. Considered writing own Little Snitch clone (C#, WFP user-mode); shelved in favour of WFC.
+
+**TODO (needs user):** IDA Free (hex-rays EULA, optional). **Malware-phase plan (PARKED until the course reaches malware analysis):** user dislikes dev in VMs (too slow), so **bare-metal Windows is the victim** with FLARE-VM installed on it (red screen glow = reminder to go dark; FLARE-VM itself has NO glow feature, checked its repos 2026-10-22). REMnux VM on VMnet1 host-only runs INetSim/fake DNS; Windows host-only adapter uses REMnux as gateway+DNS. Already built (2026-10-22): `C:\RE\scripts\GoDark.ps1` / `GoOnline.ps1` (user wants no hyphens in names; desktop shortcuts run as admin; GoDark saves Wi-Fi profiles+passwords to passphrase-encrypted `wifi-profiles.enc` via shared `WifiVault.ps1`, GoOnline restores it; user confirmed working 2026-10-22. Shortcuts run Windows PowerShell 5.1, so test scripts in 5.1 too) and RedGlow (`C:\RE\dev\RedGlow` C# WinForms source, published to `C:\RE\tools\RedGlow`, Startup-folder shortcut) which glows red while any non-VMware adapter has a gateway. Earlier plan text: `Go-Dark.ps1` (export+delete saved Wi-Fi profiles, disable non-VMware adapters, verify no route out) and `Go-Online.ps1`; clean disk image (Rescuezilla/Clonezilla) restored after each detonation, never go online post-detonation without restoring.
+
+Full human-readable handoff lives at `C:\Users\n0nvid\source\repos\Claude\MEMORY.md`.
+
+**REMnux built (2026-10-22):** `C:\RE\vms\REMnux\REMnux.vmx` (OVA 202610b, sha256-verified, in `C:\RE\installers\remnux`; login remnux/malware). Host-only VMnet1 only, static 192.168.34.2 (VMnet1 host side = 192.168.34.1). `lab-fakenet.service` (enabled) adds iptables REDIRECT on ens33 + runs INetSim with DNS (`dns_default_ip`/`service_bind_address` = .2; original conf at inetsim.conf.orig). Snapshot "Clean fakenet". GoDark adds ActiveStore default route + DNS on VMnet1 -> .2; GoOnline removes them. GOTCHAS: ovftool import set `virtualhw.version = "99"` -> VMware refuses to boot, set to 21. WFC blocks curl/git; pwsh Invoke-WebRequest is allowed (use `-Resume` for big downloads). Drive guest via `vmrun -gu remnux -gp malware` CopyFileFromHostToGuest + runProgramInGuest /bin/bash (write scripts with LF endings).
