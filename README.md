@@ -26,7 +26,7 @@ tools (section 2) are installed directly on the laptop.
 | `RedGlow/` | C# app: red screen-edge glow while online | source `C:\RE\dev\RedGlow`, built to `C:\RE\tools\RedGlow` |
 | `remnux/setup-fakenet.sh` | Turns the REMnux VM into the fake internet | run inside REMnux |
 | `scripts/SaveBaseline.ps1`, `RestoreLab.ps1`, `LabBoot.ps1` | Save or restore C: through Clonezilla | `C:\RE\scripts\` |
-| `scripts/BackupEvidence.ps1`, `RestoreEvidence.ps1`, `UsbDrive.ps1` | Copy E: to a USB drive and back | `C:REscripts` |
+| `scripts/BackupEvidence.ps1`, `RestoreEvidence.ps1`, `UsbDrive.ps1` | Copy E: to a USB drive and back | `C:\RE\scripts\` |
 | `clonezilla/lab.sh` | The unattended save/restore script Clonezilla runs | `lab\lab.sh` on the CZLAB partition |
 | `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
 | `MEMORY.md` | Older (2026-10-20) setup handoff; this README replaces it | |
