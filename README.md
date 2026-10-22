@@ -28,6 +28,7 @@ tools (section 2) are installed directly on the laptop.
 | `scripts/SaveBaseline.ps1`, `RestoreLab.ps1`, `LabBoot.ps1` | Save or restore C: through Clonezilla | `C:\RE\scripts\` |
 | `scripts/WiFi.ps1`, `Lab.ps1`, `Evidence.ps1`, `Menu.ps1` | The three desktop menus | `C:\RE\scripts\` |
 | `scripts/Detonate.ps1` | Run a sample under instrumentation, collect to E:\cases | `C:\RE\scripts\` |
+| `scripts/ExportSysmon.ps1` | Dump the Sysmon log to E:\cases on demand | `C:\RE\scripts\` |
 | `scripts/BackupEvidence.ps1`, `RestoreEvidence.ps1`, `UsbDrive.ps1` | Copy E: to a USB drive and back | `C:\RE\scripts\` |
 | `clonezilla/lab.sh` | The unattended save/restore script Clonezilla runs | `lab\lab.sh` on the CZLAB partition |
 | `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
@@ -193,6 +194,25 @@ from the tray, and publish again.
    REMnux pcap and INetSim logs are the more trustworthy record.
 4. Put anything you want to keep on E:, then **Lab** → `RESTORE`.
 5. **WiFi** → `ONLINE`. Never go online after a detonation without restoring first.
+
+### Sysmon (always-on telemetry)
+
+Sysmon (Sysinternals) is installed with the **SwiftOnSecurity** config, logging process, network, file,
+registry and DNS activity to the Windows event log all the time — so there's a record even if you forget
+to start Procmon. Setup on this machine:
+
+- Config: `C:\RE\tools\sysmon\sysmonconfig.xml`, from
+  <https://raw.githubusercontent.com/SwiftOnSecurity/sysmon-config/master/sysmonconfig-export.xml> (schema 4.50).
+  (Olaf Hartong's `sysmon-modular` is a more granular drop-in alternative.)
+- Install: `C:\RE\tools\sysmon\Sysmon64.exe -accepteula -i C:\RE\tools\sysmon\sysmonconfig.xml`
+- Log sized to 512 MB: `wevtutil sl Microsoft-Windows-Sysmon/Operational /ms:536870912`
+- Update the config later: `Sysmon64.exe -c sysmonconfig.xml`
+
+**Detonate.ps1** exports this run's Sysmon events to each case (`sysmon.evtx` + `sysmon_window.csv`), and
+`summary.txt` lists the event-type counts (id 1 process, 3 network, 11 file, 13 registry, 22 DNS, …).
+**ExportSysmon.ps1** dumps the log to `E:\cases` on demand (`-SinceMinutes N` limits the CSV window).
+
+Sysmon lives on C:, so **re-run Lab → BACKUP** after installing it to put it in the clean baseline.
 
 ## 9. On-disk recovery image (Clonezilla)
 
