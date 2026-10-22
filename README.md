@@ -113,11 +113,11 @@ have to stop and think. The word is the confirmation, so the script underneath d
 ```powershell
 $desk = [Environment]::GetFolderPath('Desktop'); $ws = New-Object -ComObject WScript.Shell
 # Icons: copy icons\*.ico (Wireless, Alembic, Fingerprint; see icons/README.md) to C:\RE\tools\icons\ first
-foreach ($i in @(@{N='WiFi'; A=$true}, @{N='Lab'; A=$true}, @{N='Evidence'; A=$false})) {
+foreach ($i in @(@{N='WiFi'; I='WiFi'; A=$true}, @{N='Lab'; I='Lab'; A=$true}, @{N='Evidence'; I='Fingerprint'; A=$false})) {
     $p = Join-Path $desk "$($i.N).lnk"; $l = $ws.CreateShortcut($p)
     $l.TargetPath = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
     $l.Arguments = "-NoProfile -ExecutionPolicy Bypass -NoExit -File `"C:\RE\scripts\$($i.N).ps1`""
-    $l.WorkingDirectory = 'C:\RE\scripts'; $l.IconLocation = "C:\RE\tools\icons\$($i.N).ico,0"; $l.Save()
+    $l.WorkingDirectory = 'C:\RE\scripts'; $l.IconLocation = "C:\RE\tools\icons\$($i.I).ico,0"; $l.Save()
     if ($i.A) { $b = [IO.File]::ReadAllBytes($p); $b[0x15] = $b[0x15] -bor 0x20; [IO.File]::WriteAllBytes($p, $b) }  # "Run as administrator"
 }
 ```
