@@ -154,6 +154,8 @@ from the tray, and publish again.
    DNS enabled (the original config is saved as `/etc/inetsim/inetsim.conf.orig`), and installs the
    **`lab-fakenet.service`**. That service adds an iptables `REDIRECT` for all traffic arriving on `ens33`, then runs INetSim, at every boot.
 5. **Take a snapshot:** `& $vr -T ws snapshot $v 'Clean fakenet'`
+   Desktop shortcut **REMnux**: `"C:\Program Files\VMware\VMware Workstation\vmware.exe" -x "C:\RE\vms\REMnux\REMnux.vmx"`
+   (opens VMware and powers the VM on).
 6. **Test from Windows** (works while still online):
    ```powershell
    Resolve-DnsName anything-fake.xyz -Server 192.168.34.2 -DnsOnly   # -> 192.168.34.2
