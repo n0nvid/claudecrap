@@ -181,7 +181,8 @@ partitions by label (`CZLAB`) and GPT partition GUID, never by number.
 |---|---|---|---|
 | 1 | EFI system | 0.2 GB | |
 | 2 | MSR | 16 MB | |
-| 3 | **C:** | 476 GB | the only partition that gets saved or restored |
+| 3 | **C:** | 426 GB | the only partition that gets saved or restored |
+| 7 | **E: Evidence** | 50 GB | NTFS. Never restored: `samples\`, `cases\`, `remnux\` (shared into REMnux at `/mnt/evidence`) |
 | 4 | **CZLAB** | 2 GB | FAT32, no drive letter. Clonezilla Live 3.3.3-37 + `lab/lab.sh` + `lab/mode` |
 | 5 | **Images** | 475 GB | Linux partition type, ext4 (formatted by the first save). Windows can't mount it |
 | 6 | Windows Recovery | 0.9 GB | |
@@ -216,6 +217,22 @@ partitions by label (`CZLAB`) and GPT partition GUID, never by number.
    `bcdedit /set <id> path \EFI\boot\bootx64.efi` → `bcdedit /set {fwbootmgr} displayorder <id> /addlast`.
    Secure Boot is off on this machine. If it's on, the firmware has to trust the Microsoft 3rd-party UEFI CA.
 5. Copy `scripts\LabBoot.ps1`, `SaveBaseline.ps1` and `RestoreLab.ps1` to `C:\RE\scripts\` and create shortcuts as in section 5.
+
+### Evidence partition (E:)
+
+RestoreLab rolls back all of C:, and that includes the REMnux VM in `C:\RE\vms`. That's deliberate: REMnux comes back
+clean too. Anything you want to **keep** from a detonation goes on **E:**, which restores never touch:
+- `E:\samples\`: samples waiting to be run. Defender will quarantine them unless you exclude the folder or turn Defender off while dark.
+- `E:\cases\<name>\`: Procmon logs, dropped files, notes, and so on.
+- `E:\remnux\`: shared into REMnux as `/mnt/evidence` (VMware shared folder `evidence`, mounted at boot through
+  `/etc/fstab` with `fuse.vmhgfs-fuse`). Save pcaps and INetSim logs there.
+
+Malware running on Windows *can* reach E:, so it can tamper with evidence. It can't reach the clean image.
+
+To rebuild it: `Resize-Partition -DriveLetter C -Size 426GB`, then
+`New-Partition -DiskNumber 0 -UseMaximumSize -DriveLetter E` and format it NTFS with the label `Evidence`. Then
+`vmrun enableSharedFolders` + `vmrun addSharedFolder <vmx> evidence E:\remnux`, run `remnux/evidence-share.sh`
+inside REMnux, and **run SaveBaseline**: an image of the old, larger C: can't be restored into a smaller partition.
 
 Same-disk caveat: malware with admin rights can still wipe or encrypt the image partition (or CZLAB). A USB copy is only
 exposed if it's plugged in while infected Windows is running. Plugging it in only while booted into
