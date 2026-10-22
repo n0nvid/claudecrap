@@ -7,12 +7,15 @@
     Unattended detonation helper for the bare-metal victim. It:
       1. Refuses unless the machine is DARK (GoDark active) - never detonates online.
       2. Takes a BEFORE snapshot of the system (autoruns, processes, services, tasks, hosts, drops).
-      3. Starts captures: Procmon on the host, and tcpdump on REMnux (outside the malware's reach).
-      4. Launches the sample and lets it run for -Minutes.
-      5. Stops the captures, takes an AFTER snapshot, and diffs the two.
+      3. Starts captures: Procmon + Sysmon on the host, and tcpdump on REMnux (outside the malware's reach).
+      4. STOPS and hands off to you - it does NOT run the sample. You launch it yourself when ready.
+      5. When you press Enter (or after -Minutes, if given), stops the captures, takes an AFTER snapshot, diffs.
       6. Collects everything, plus INetSim's logs from REMnux, into E:\cases\<name>_<timestamp>\.
 
-    TRUST NOTE: this script and its host-side output (Procmon, the snapshots) run on the infected
+    The sample stays where it is (e.g. E:\samples) and is run from there - nothing is copied to C:.
+    A record copy (sample.bin) is saved into the case folder, but that copy is not what you execute.
+
+    TRUST NOTE: this script and its host-side output (Procmon, Sysmon, the snapshots) run on the infected
     machine, so capable malware can see or tamper with them. The REMnux-side pcap and INetSim logs
     are captured outside the victim and are the more trustworthy record. RestoreLab afterwards.
 
@@ -20,16 +23,13 @@
     Path to the sample. Defaults to picking from E:\samples.
 
 .PARAMETER Minutes
-    How long to let the sample run (default 2).
+    Optional automatic stop after N minutes. Default 0 = capture until you press Enter.
 
 .PARAMETER Name
     Case name (default: the sample's base name).
 
-.PARAMETER NoRun
-    Do everything except actually launching the sample - use it to test the harness safely.
-
 .PARAMETER Force
-    Detonate even though GoDark doesn't appear to be active (NOT recommended).
+    Proceed even though GoDark doesn't appear to be active (NOT recommended).
 
 .EXAMPLE
     .\Detonate.ps1
@@ -37,9 +37,8 @@
 #>
 param(
     [string]$Sample,
-    [int]$Minutes = 2,
+    [int]$Minutes = 0,
     [string]$Name,
-    [switch]$NoRun,
     [switch]$Force
 )
 
@@ -98,14 +97,18 @@ $null = New-Item -ItemType Directory -Force $case,$before,$after,$netDir,$share
 Write-Host ""
 Write-Host "  DETONATION: $caseId  " -BackgroundColor DarkRed -ForegroundColor White
 Write-Host "  Sample : $Sample"
-Write-Host "  Run    : $Minutes min$(if($NoRun){'  (NoRun: will NOT execute)'})"
+Write-Host "  Stop   : $(if($Minutes -gt 0){"Enter, or after $Minutes min"}else{'when you press Enter'})"
 Write-Host "  Output : $case"
 Write-Host ""
-if ((Read-Host "  Type GO to detonate") -cne 'GO') { Bad "Cancelled."; Remove-Item $case,$share -Recurse -Force -EA SilentlyContinue; exit 1 }
+Write-Host "  This only sets up the capture - YOU launch the sample afterward." -ForegroundColor DarkGray
+if ((Read-Host "  Type GO to start the capture") -cne 'GO') { Bad "Cancelled."; Remove-Item $case,$share -Recurse -Force -EA SilentlyContinue; exit 1 }
 
 # Record the sample's identity (and copy it into the case, with a .bin suffix so it won't run by accident).
 Step "Hashing the sample"
-$hash = (Get-FileHash -LiteralPath $Sample -Algorithm SHA256).Hash
+# .NET rather than Get-FileHash: no module dependency, works the same in PowerShell 5.1 and 7.
+$sha = [System.Security.Cryptography.SHA256]::Create()
+$fs  = [IO.File]::OpenRead($Sample)
+try { $hash = ([BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-','') } finally { $fs.Dispose(); $sha.Dispose() }
 @(
     "name        : $($sampleItem.Name)"
     "path        : $Sample"
@@ -161,22 +164,30 @@ Start-Sleep 3
 # Mark the start time so we can pull just this run's Sysmon events afterward.
 $runStart = Get-Date
 
-# --- Detonate ----------------------------------------------------------------------------
-if ($NoRun) {
-    Warn "NoRun: skipping sample execution. Waiting $Minutes min to exercise the harness."
-} else {
-    Step "LAUNCHING SAMPLE - $($sampleItem.Name)"
-    try { $proc = Start-Process -FilePath $Sample -PassThru -WorkingDirectory $sampleItem.DirectoryName; Ok "Running as PID $($proc.Id)" }
-    catch { Bad "Could not launch the sample directly: $_"; Warn "For a DLL use rundll32; for a document open it in its app manually now." }
-}
-
-$end = (Get-Date).AddMinutes($Minutes)
-while ((Get-Date) -lt $end) {
-    $left = [int]($end - (Get-Date)).TotalSeconds
-    Write-Host ("`r  running... {0,4}s left " -f $left) -NoNewline -ForegroundColor DarkGray
-    Start-Sleep 1
-}
+# --- Hand off to you: the script never launches the sample -------------------------------
+# Captures are running. YOU launch the sample when ready, and press Enter to stop collecting.
 Write-Host ""
+Write-Host "  PREP COMPLETE - captures are running (Procmon, Sysmon, REMnux tcpdump).  " -BackgroundColor DarkRed -ForegroundColor White
+Write-Host ""
+Write-Host "  >> Launch the sample yourself now:" -ForegroundColor Yellow
+Write-Host "       $Sample" -ForegroundColor White
+Write-Host "     (double-click it, or run it the way you intend - .exe directly, rundll32 for a .dll," -ForegroundColor DarkGray
+Write-Host "      open a document in its app, etc. It stays on E: - nothing was copied to C:.)" -ForegroundColor DarkGray
+Write-Host ""
+
+if ($Minutes -gt 0) {
+    Write-Host "  Capturing until you press Enter, or $Minutes min - whichever comes first." -ForegroundColor Cyan
+    $deadline = (Get-Date).AddMinutes($Minutes)
+    while ((Get-Date) -lt $deadline) {
+        try { if ([Console]::KeyAvailable -and [Console]::ReadKey($true).Key -eq 'Enter') { break } } catch {}
+        $left = [int]($deadline - (Get-Date)).TotalSeconds
+        Write-Host ("`r  capturing... {0,4}s left (Enter to stop now) " -f $left) -NoNewline -ForegroundColor DarkGray
+        Start-Sleep -Milliseconds 500
+    }
+    Write-Host ""
+} else {
+    Read-Host "  Capturing. Run the sample, then press Enter here to STOP and collect"
+}
 
 # --- Stop captures -----------------------------------------------------------------------
 Step "Stopping Procmon"

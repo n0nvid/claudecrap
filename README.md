@@ -184,14 +184,16 @@ from the tray, and publish again.
 
 1. Online: write code, push it off the machine.
 2. Start REMnux (**REMnux** shortcut), then **WiFi** → `DARK`. Wait for **DARK** and check the red glow has gone.
-3. Run **Detonate** (desktop, admin) or `Detonate.ps1`. It refuses unless you're dark, then:
-   takes a BEFORE snapshot (autoruns, processes, services, tasks, hosts, drop folders), starts
-   **Procmon** on the host and **tcpdump on REMnux** (ens33, outside the malware's reach), launches
-   the sample for `-Minutes` (default 2), stops the captures, takes an AFTER snapshot, diffs them,
-   and collects everything to `E:\cases\<name>_<timestamp>\` (summary.txt, procmon.pml, sample.bin,
-   before/, after/, network/{capture.pcap, inetsim/}). GoDark's VMnet1 allow rule (section on GoDark)
-   lets the traffic through. The host-side output can be tampered with by capable malware; the
-   REMnux pcap and INetSim logs are the more trustworthy record.
+3. Run **Detonate** (desktop, admin) or `Detonate.ps1`. It refuses unless you're dark, then does the
+   PREP only: BEFORE snapshot (autoruns, processes, services, tasks, hosts, drop folders), starts
+   **Procmon + Sysmon** on the host and **tcpdump on REMnux** (ens33, outside the malware's reach), and
+   then **stops and hands off to you** - it does NOT launch the sample. You run it yourself from
+   `E:\samples` (it stays on E:, nothing is copied to C:). Press Enter (or wait `-Minutes`, if given) to
+   stop; it then takes an AFTER snapshot, diffs, and collects everything to
+   `E:\cases\<name>_<timestamp>\` (summary.txt, procmon.pml, sysmon.evtx + sysmon_window.csv, sample.bin,
+   before/, after/, network/{capture.pcap, inetsim/}). GoDark's VMnet1 allow rule lets the traffic through.
+   Host-side output can be tampered with by capable malware; the REMnux pcap and INetSim logs are the
+   more trustworthy record.
 4. Put anything you want to keep on E:, then **Lab** → `RESTORE`.
 5. **WiFi** → `ONLINE`. Never go online after a detonation without restoring first.
 
