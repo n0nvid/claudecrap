@@ -5,7 +5,7 @@ Multi-size `.ico` files (16-256 px). On the machine they live in `C:\RE\tools\ic
 | Icon | Emoji | Source |
 |---|---|---|
 | `Fingerprint.ico` (Evidence) | 🫆 Fingerprint | Windows' Segoe UI Emoji font (the emoji-picker version), rendered with headless Edge on a transparent background |
-| `Lab.ico` | ⚗️ Alembic | Fluent Emoji 3D |
+| `PetriDish.ico` (Lab) | 🧫 Petri dish | Segoe UI Emoji, rendered like the fingerprint; the yellow-green dots recoloured white (pixels where G - B > 40 blended to a grey taken from G, so the shading survives) |
 | `WiFi.ico` | 🛜 Wireless | Fluent Emoji 3D |
 
 Fluent Emoji 3D: https://github.com/microsoft/fluentui-emoji (MIT licence, Copyright (c) Microsoft Corporation).
