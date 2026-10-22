@@ -100,8 +100,8 @@ gateway and DNS, re-enables the adapters, asks for the passphrase and restores W
 
 ### Desktop: three menus
 
-Each desktop shortcut opens a menu where you type a word (any case). The word is the confirmation, so the script
-underneath doesn't ask again. They share `Menu.ps1` and run in Windows PowerShell 5.1, so test changes in 5.1.
+Each desktop shortcut opens a menu where you type a word **in capitals**. Lowercase is refused on purpose, so you
+have to stop and think. The word is the confirmation, so the script underneath doesn't ask again. They share `Menu.ps1` and run in Windows PowerShell 5.1, so test changes in 5.1.
 
 | Shortcut | Admin | Type | Runs |
 |---|---|---|---|
