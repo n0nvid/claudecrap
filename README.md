@@ -4,7 +4,8 @@ How to rebuild this lab from a clean Windows 11 install. State as of **2026-10-2
 
 The laptop is a **throwaway, bare-metal** lab. Windows itself is the victim machine:
 malware runs on it while it is cut off from real networks, and a REMnux VM plays the part of
-the internet. A clean disk image gets the machine back afterwards.
+the internet. A clean disk image gets the machine back afterwards. There's no FLARE-VM: the analysis
+tools (section 2) are installed directly on the laptop.
 
 ```
  Windows laptop (victim)                    REMnux VM (VMware)
