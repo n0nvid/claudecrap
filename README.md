@@ -172,16 +172,17 @@ from the tray, and publish again.
 
 ## 9. On-disk recovery image (Clonezilla)
 
-Disk layout (954 GB NVMe, GPT):
+Disk layout (954 GB NVMe, GPT). Windows numbers partitions by position on disk, so numbers can change; the scripts find
+partitions by label (`CZLAB`) and GPT partition GUID, never by number.
 
 | # | Partition | Size | Notes |
 |---|---|---|---|
 | 1 | EFI system | 0.2 GB | |
 | 2 | MSR | 16 MB | |
 | 3 | **C:** | 476 GB | the only partition that gets saved or restored |
-| 5 | **CZLAB** | 2 GB | FAT32, no drive letter. Clonezilla Live 3.3.3-37 + `lab/lab.sh` + `lab/mode` |
-| 6 | **Images** | 475 GB | Linux partition type, ext4 (formatted by the first save). Windows can't mount it |
-| 4 | Windows Recovery | 0.9 GB | |
+| 4 | **CZLAB** | 2 GB | FAT32, no drive letter. Clonezilla Live 3.3.3-37 + `lab/lab.sh` + `lab/mode` |
+| 5 | **Images** | 475 GB | Linux partition type, ext4 (formatted by the first save). Windows can't mount it |
+| 6 | Windows Recovery | 0.9 GB | |
 
 **Desktop shortcuts** (run as admin):
 - **SaveBaseline:** type `SAVE`. Reboots into Clonezilla, which images C: to `lab-clean` (with SHA-1 checksums) and reboots back
