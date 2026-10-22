@@ -91,7 +91,10 @@ Copy `scripts\*.ps1` to `C:\RE\scripts\` (keep all three together). Both scripts
    before deleting anything.
 2. Deletes the saved Wi-Fi profiles so nothing can silently rejoin a network.
 3. Disables every network adapter except VMnet1, and records which ones in `.godark-state.json`.
-4. Sets VMnet1's default gateway (ActiveStore, so it's gone after a reboot) and DNS to REMnux, 192.168.34.2.
+4. Sets VMnet1's default gateway (ActiveStore, so it's gone after a reboot) and DNS to REMnux, 192.168.34.2,
+   and adds one firewall rule allowing outbound **only on the VMnet1 interface** ("LabDark allow outbound on VMnet1").
+   WFC is block-first, which would otherwise drop the sample's connections before INetSim sees them; this lets them
+   reach REMnux while every other interface stays blocked (and they're disabled anyway). GoOnline removes the rule.
 5. Checks: no other adapter is up, no Wi-Fi profiles are left, and 1.1.1.1, 8.8.8.8 and a Cloudflare IPv6 address only
    route through VMnet1. Prints **DARK** or **NOT DARK** (exit code 1).
 

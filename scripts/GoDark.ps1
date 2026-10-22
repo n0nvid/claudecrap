@@ -19,6 +19,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'WifiVault.ps1')
 $KeepPattern = 'VMnet1$'   # InterfaceDescription of the adapter that stays enabled
 $RemnuxIP = '192.168.34.2'  # REMnux VM on VMnet1: gateway and DNS while dark
+$FwRuleName = 'LabDark allow outbound on VMnet1'  # WFC bypass on the REMnux link only
 $StateFile = Join-Path $PSScriptRoot '.godark-state.json'
 $TestTargets = '1.1.1.1', '8.8.8.8', '2606:4700:4700::1111'
 
@@ -87,6 +88,18 @@ Remove-NetRoute -InterfaceIndex $vmnet1.ifIndex -DestinationPrefix '0.0.0.0/0' -
 New-NetRoute -InterfaceIndex $vmnet1.ifIndex -DestinationPrefix '0.0.0.0/0' -NextHop $RemnuxIP -PolicyStore ActiveStore | Out-Null
 Set-DnsClientServerAddress -InterfaceIndex $vmnet1.ifIndex -ServerAddresses $RemnuxIP
 
+# Let the sample's traffic actually reach REMnux: WFC blocks unknown apps by default, which
+# would drop the malware's connections before INetSim sees them. This allows outbound ONLY on
+# the VMnet1 interface (the isolated link to REMnux). Every other interface stays blocked, and
+# they're disabled anyway while dark. GoOnline removes this rule.
+Write-Step "Allowing outbound on $($vmnet1.Name) so the sample reaches REMnux (other interfaces stay blocked)"
+Get-NetFirewallRule -DisplayName $FwRuleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+# Persistent rule (GoOnline removes it). Reboot safety doesn't depend on it: disabled adapters
+# stay disabled across a reboot, and the 0.0.0.0/0 route above is ActiveStore, so it's gone anyway.
+New-NetFirewallRule -DisplayName $FwRuleName -Direction Outbound -Action Allow -InterfaceAlias $vmnet1.Name `
+    -Profile Any -Enabled True `
+    -Description 'Lab: fake-internet path to REMnux while dark (added by GoDark, removed by GoOnline)' | Out-Null
+
 # --- 5. Verify ---------------------------------------------------------------------------
 Write-Step "Verifying"
 $failed = $false
@@ -118,6 +131,13 @@ foreach ($ip in $TestTargets) {
         Write-Bad "$ip is still reachable via $($route.InterfaceAlias)"
         $failed = $true
     }
+}
+
+if (Get-NetFirewallRule -DisplayName $FwRuleName -ErrorAction SilentlyContinue) {
+    Write-Ok "Outbound allowed on VMnet1 only (sample traffic will reach REMnux)"
+} else {
+    Write-Bad "VMnet1 allow rule missing - WFC may block the sample's traffic to REMnux"
+    $failed = $true
 }
 
 # REMnux being down doesn't make the machine less dark, so this only warns.

@@ -41,6 +41,11 @@ if (-not $Force) {
 }
 
 # --- 2. Stop sending traffic to REMnux --------------------------------------------------
+# Remove the dark-mode WFC bypass first, so outbound is back to block-first before anything reconnects.
+if (Get-NetFirewallRule -DisplayName 'LabDark allow outbound on VMnet1' -ErrorAction SilentlyContinue) {
+    Write-Step "Removing the VMnet1 outbound allow rule (back to block-first)"
+    Get-NetFirewallRule -DisplayName 'LabDark allow outbound on VMnet1' | Remove-NetFirewallRule
+}
 $vmnet1 = Get-NetAdapter | Where-Object InterfaceDescription -match 'VMnet1$'
 if ($vmnet1) {
     Write-Step "Removing the REMnux route and DNS from $($vmnet1.Name)"
