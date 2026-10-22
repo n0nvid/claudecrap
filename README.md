@@ -27,6 +27,7 @@ tools (section 2) are installed directly on the laptop.
 | `remnux/setup-fakenet.sh` | Turns the REMnux VM into the fake internet | run inside REMnux |
 | `scripts/SaveBaseline.ps1`, `RestoreLab.ps1`, `LabBoot.ps1` | Save or restore C: through Clonezilla | `C:\RE\scripts\` |
 | `scripts/WiFi.ps1`, `Lab.ps1`, `Evidence.ps1`, `Menu.ps1` | The three desktop menus | `C:\RE\scripts\` |
+| `scripts/Detonate.ps1` | Run a sample under instrumentation, collect to E:\cases | `C:\RE\scripts\` |
 | `scripts/BackupEvidence.ps1`, `RestoreEvidence.ps1`, `UsbDrive.ps1` | Copy E: to a USB drive and back | `C:\RE\scripts\` |
 | `clonezilla/lab.sh` | The unattended save/restore script Clonezilla runs | `lab\lab.sh` on the CZLAB partition |
 | `memory/` | Claude Code's memory files for this project | `%USERPROFILE%\.claude\projects\C--Users-n0nvid-source-repos-Claude\memory\` |
@@ -182,9 +183,14 @@ from the tray, and publish again.
 
 1. Online: write code, push it off the machine.
 2. Start REMnux (**REMnux** shortcut), then **WiFi** → `DARK`. Wait for **DARK** and check the red glow has gone.
-3. Run the sample. Capture traffic on REMnux (Wireshark/tcpdump on `ens33`); INetSim logs are in
-   `/var/log/inetsim/`. WFC will still block unknown programs, so allow them or lower WFC's
-   profile while dark if you want to see their traffic.
+3. Run **Detonate** (desktop, admin) or `Detonate.ps1`. It refuses unless you're dark, then:
+   takes a BEFORE snapshot (autoruns, processes, services, tasks, hosts, drop folders), starts
+   **Procmon** on the host and **tcpdump on REMnux** (ens33, outside the malware's reach), launches
+   the sample for `-Minutes` (default 2), stops the captures, takes an AFTER snapshot, diffs them,
+   and collects everything to `E:\cases\<name>_<timestamp>\` (summary.txt, procmon.pml, sample.bin,
+   before/, after/, network/{capture.pcap, inetsim/}). GoDark's VMnet1 allow rule (section on GoDark)
+   lets the traffic through. The host-side output can be tampered with by capable malware; the
+   REMnux pcap and INetSim logs are the more trustworthy record.
 4. Put anything you want to keep on E:, then **Lab** → `RESTORE`.
 5. **WiFi** → `ONLINE`. Never go online after a detonation without restoring first.
 
