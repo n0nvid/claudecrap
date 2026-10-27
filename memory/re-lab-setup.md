@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: 62b6b320-9a62-4fe8-a4f3-7ebc85ffb11a
-  modified: 2026-10-21T00:08:29.936Z
+  modified: 2026-10-27T03:36:12.664Z
 ---
 
 This bare-metal Windows 11 Home laptop is a **dedicated, throwaway RE/malware lab** (user will wipe it if needed). User is taking the Udemy course "Reverse Engineering and Malware Analysis Fundamentals": general software RE first (host stays online, no isolation needed), malware analysis later.
@@ -41,3 +41,5 @@ Full human-readable handoff lives at `C:\Users\n0nvid\source\repos\Claude\MEMORY
 - DISCUSSED: ext4 for E: = bad (Windows cant read ext4, so your own tools cant write there; ext4 only helps on REMnux). RestoreLab only restores C:, NEVER E:; E: USB backup is insurance for PRIOR notes only, not routine. Reinfection: clean C: wont auto-reinfect from E: (autostart hooks were on C:, wiped); risk is executing something from E: post-restore -> treat E: as contaminated.
 - Dual-boot REMnux: CANT replace the VM (both OSes cant run at once; fake-internet + live capture need concurrency). Good only for dead-box forensics AFTER a run, but risks GRUB/WinRE/Clonezilla boot setup + same-disk tamper. RECOMMENDED instead: live REMnux USB for post-run dead-box forensics. DECISION PENDING (asked VM-combo+liveUSB vs VM-combo-only vs actually-dual-boot).
 - HARDENING IDEAS offered, NOT built: (a) detach E: / remove its drive letter during the detonation window + Procmon log to C:; (b) disable AutoRun machine-wide (NoDriveTypeAutoRun=0xFF); (c) scan E: with Defender in GoOnline before going online.
+
+**Malware-analysis tools (2026-10-26):** user wanted them SEPARATE from RE tools: binaries in `C:\RE\analysis\<Tool>`, GUI shortcuts in Desktop\"Analysis Tools" (System Informer, API Monitor x64/x86, Regshot, NetworkMiner, CyberChef, Resource Hacker, Analysis folder, Analysis Shell = pwsh with `C:\RE\analysis\pyvenv` activated in E:\cases). CLI on user PATH: pe-sieve, HollowsHunter, UPX, de4dot-cex, Chainsaw, Hayabusa, WinPmem. Also ScyllaHide copied into x64dbg plugins, Didier Stevens Suite, pyinstxtractor, BlobRunner 32+64-bit (Defender ate blobrunner64 as Trojan:Win32/Vigorf.A until the user excluded all of C:\RE themselves on 2026-10-26; E:\ is excluded too). pyvenv: volatility3, speakeasy 2.0.0b9 (1.5.x broken on Py3.12), autoit-ripper, XLMMacroDeobfuscator (+setuptools for distutils). Details in README section 2. Needs a new Lab->BACKUP to survive restores.

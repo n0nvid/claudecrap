@@ -49,8 +49,8 @@ bcdedit /set hypervisorlaunchtype off
 # Folder layout
 New-Item -ItemType Directory -Force C:\RE\tools, C:\RE\dev, C:\RE\installers, C:\RE\scripts, C:\RE\vms
 
-# Defender stays ON; exclude only your own source code folder
-Add-MpPreference -ExclusionPath C:\RE\dev
+# Defender stays ON; exclude the lab folder (tools like BlobRunner get flagged) and the evidence drive
+Add-MpPreference -ExclusionPath C:\RE, E:\
 ```
 
 Explorer: turn on **file name extensions** and **hidden items**.
@@ -63,6 +63,42 @@ Explorer: turn on **file name extensions** and **hidden items**.
   Wireshark.
 - **Python RE venv:** `python -m venv C:\RE\tools\revenv`, then
   `C:\RE\tools\revenv\Scripts\pip install pefile capstone yara-python oletools`.
+
+### Malware-analysis tools (`C:\RE\analysis`)
+
+These are kept apart from the RE tools. The GUI ones have shortcuts in the Desktop **Analysis Tools** folder.
+Downloads go to `C:\RE\installers\analysis`, and each tool gets its own subfolder.
+
+| Tool | Source | Use |
+|---|---|---|
+| System Informer | winsiderss/systeminformer `-bin.zip` (`amd64\`) | Process Hacker successor: memory, handles, injected threads |
+| API Monitor | rohitab.com `api-monitor-v2r13-x86-x64.zip` | Trace API calls of a running sample |
+| Regshot | SourceForge `Regshot-1.9.0.7z` (use `downloads.sourceforge.net`, the `/download` link gives 403) | Registry/file snapshot diff |
+| NetworkMiner | netresec.com `?download=NetworkMiner` | Browse the REMnux pcap (files, hosts, creds) |
+| CyberChef | gchq/CyberChef release zip (offline HTML) | Decode/deobfuscate strings and payloads |
+| Resource Hacker | `winget install AngusJohnson.ResourceHacker` (the angusj.com zip returns 406) | Pull embedded resources/payloads out of PEs |
+| PE-sieve, HollowsHunter | hasherezade releases (32+64-bit exe) | Find and dump injected/hollowed code |
+| ScyllaHide | x64dbg/ScyllaHide zip; `x64dbg\x32|x64\plugins\*` copied into x64dbg's `release\x32|x64\plugins` | Anti-anti-debug for x64dbg |
+| de4dot-cex | ViRb3/de4dot-cex | .NET deobfuscator (pair with dnSpy) |
+| UPX | upx/upx `win64.zip` | Unpack UPX-packed samples (`upx -d`) |
+| BlobRunner (32+64-bit) | OALabs/BlobRunner | Load shellcode to debug it. Defender quarantines `blobrunner64.zip` (Trojan:Win32/Vigorf.A) unless `C:\RE` is excluded |
+| WinPmem | Velocidex/WinPmem `winpmem_mini_x64_rc2.exe` (copied to `winpmem.exe`) | RAM dump for Volatility |
+| Chainsaw, Hayabusa | WithSecureLabs/chainsaw (all_platforms+rules), Yamato-Security/hayabusa `win-x64` | Hunt through the Sysmon/Windows `.evtx` files from a case |
+| Didier Stevens Suite | DidierStevens/DidierStevensSuite master zip | oledump, pdfid, pdf-parser, base64dump, etc. (`.py`) |
+| pyinstxtractor | extremecoders-re/pyinstxtractor `.py` | Unpack PyInstaller executables |
+
+The command-line folders (pe-sieve, HollowsHunter, UPX, de4dot, Chainsaw, Hayabusa, WinPmem) are added to the **user PATH**.
+Chainsaw, Hayabusa and WinPmem are copied to short names (`chainsaw.exe`, `hayabusa.exe`, `winpmem.exe`).
+
+**Python analysis venv** (separate from `revenv`, to keep their dependencies apart):
+```powershell
+python -m venv C:\RE\analysis\pyvenv
+C:\RE\analysis\pyvenv\Scripts\pip install volatility3 "speakeasy-emulator==2.0.0b9" autoit-ripper XLMMacroDeobfuscator setuptools
+```
+Python 3.12 has no `distutils`. XLMMacroDeobfuscator needs `setuptools` for it, and speakeasy 1.5.x (old unicorn 1.x)
+won't start at all, which is why the version is pinned to the 2.0 beta. The **Analysis Shell** desktop shortcut opens pwsh with this venv activated,
+in `E:\cases`. Commands: `vol`, `speakeasy`, `autoit-ripper`, `xlmdeobfuscator`.
+WFC prompts the first time the new venv's `python.exe` goes online, so allow it before you `pip install`.
 
 ## 3. VMware Workstation Pro
 
